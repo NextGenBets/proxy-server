@@ -1,10 +1,21 @@
 const express = require('express')
 const axios = require('axios')
-// const config = require('./config') // optional
+const cors = require('cors')
 
 const app = express()
+
+// Parse JSON bodies
 app.use(express.json())
 
+// Enable CORS for your frontend
+app.use(cors({
+  origin: 'https://nextgenbets.com', // your frontend URL
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Authorization', 'Content-Type'],
+  credentials: true
+}))
+
+// Game launch endpoint
 app.post('/game-launch', async (req, res) => {
   try {
     const earCasinoUrl = 'https://api.nextgenbets.com/api/v1/ear-casino/game-launch'
@@ -33,6 +44,7 @@ app.post('/game-launch', async (req, res) => {
   }
 })
 
+// Start server
 app.listen(3000, () => {
   console.log('✅ EAR Proxy running on Ireland server :3000')
 })
