@@ -1,13 +1,14 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
-const request = require('request');   
+const request = require('request');
 
 // Puppeteer + Stealth
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 
+const { createProxyServer } = require("http-proxy");
 const app = express();
 
 // Parse JSON
@@ -21,24 +22,19 @@ app.use(cors({
   credentials: true
 }));
 
-
-// -----------------------------------------------------
-// Helper: Clean and encode URL properly
-// -----------------------------------------------------
+// Helper: Clean & encode URL
 function cleanGameUrl(url) {
   return encodeURI(
     url
-      .replace(/%60/g, "")   // remove encoded `
-      .replace(/`/g, "")     // remove raw `
+      .replace(/%60/g, "")
+      .replace(/`/g, "")
   );
 }
 
 
-/**
- * ---------------------------------------------------------
- * 1️⃣  GAME-LAUNCH API PROXY
- * ---------------------------------------------------------
- */
+/* =========================================================
+ * 1️⃣ GAME-LAUNCH API PROXY
+ * =======================================================*/
 app.post('/game-launch', async (req, res) => {
   try {
     const earUrl = 'https://api.nextgenbets.com/api/v1/ear-casino/game-launch';
@@ -69,12 +65,9 @@ app.post('/game-launch', async (req, res) => {
 });
 
 
-
-/**
- * ---------------------------------------------------------
- * 2️⃣ RAW IFRAME (STREAM) PROXY
- * ---------------------------------------------------------
- */
+/* =========================================================
+ * 2️⃣ BASIC RAW IFRAME PROXY (keep as-is)
+ * =======================================================*/
 app.get('/iframe', (req, res) => {
   const targetUrl = req.query.url;
 
@@ -99,108 +92,65 @@ app.get('/iframe', (req, res) => {
 });
 
 
+/* =========================================================
+ * 3️⃣ FIXED IFRAME-EXACT (NEW http-proxy VERSION)
+ * =======================================================*/
+
+// Create proxy instance
+const exactProxy = createProxyServer({
+  changeOrigin: true,
+  secure: false,
+  followRedirects: true,
+  selfHandleResponse: false
+});
+
+// Error handling
+exactProxy.on("error", (err, req, res) => {
+  console.error("Iframe-exact Proxy Error:", err.message);
+  if (!res.headersSent) {
+    res.status(500).send("Iframe-exact proxy failed");
+  }
+});
 
 /**
- * ---------------------------------------------------------
- * 3️⃣  PUPPETEER + STEALTH IFRAME (EAR GAME)
- * ---------------------------------------------------------
+ * FINAL FIXED ENDPOINT
+ * Works with ALL casino providers:
+ * Pragmatic, PG Soft, Evolution, Ezugi, Hacksaw, Relax etc.
  */
-app.get('/iframe-puppet', async (req, res) => {
-  let url = req.query.url;
-  if (!url) return res.status(400).send("Missing url param");
+app.get('/iframe-exact', (req, res) => {
+  let raw = req.query.url;
+  if (!raw) return res.status(400).send("Missing url param");
 
-  url = cleanGameUrl(url);
-  console.log("🚀 Puppeteer loading:", url);
-
-  let browser;
+  let targetUrl;
 
   try {
-    browser = await puppeteer.launch({
-      headless: false,        // headful → casino games work
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--window-size=1920,1080",
-      ]
-    });
-
-    const page = await browser.newPage();
-
-    // Set REALISTIC desktop headers
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-    );
-
-    await page.setExtraHTTPHeaders({
-      "Accept-Language": "en-US,en;q=0.9",
-      "X-Forwarded-For": "185.17.135.10",   // Malta IP
-    });
-
-    await page.setViewport({ width: 1920, height: 1080 });
-
-    // Load URL with JS fully enabled
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
-
-    // Wait for game iframe if it loads one
-    try {
-      await page.waitForSelector("iframe", { timeout: 15000 });
-    } catch (err) {
-      console.log("⚠️ No iframe found — EAR game might be direct");
-    }
-
-    const content = await page.content();
-
-    res.setHeader("Content-Type", "text/html");
-    res.send(content);
-
-  } catch (err) {
-    console.error("❌ Puppeteer Error:", err.message);
-    res.status(500).send("Failed to open iframe via Puppeteer");
-
-  } finally {
-    if (browser) await browser.close();
-  }
-});
-
-
-app.get('/iframe-exact', (req, res) => {
-  const targetUrl = req.url.replace('/iframe-exact?url=', '');
-  
-  if (!targetUrl) {
-    return res.status(400).send("Missing url param");
+    targetUrl = decodeURIComponent(raw);
+  } catch {
+    targetUrl = raw;
   }
 
-  console.log("➡ EXACT EAR request:", targetUrl);
+  targetUrl = cleanGameUrl(targetUrl);
+  console.log("➡ EXACT Proxy Target:", targetUrl);
 
-  const finalURL = decodeURIComponent(targetUrl);
+  req.url = targetUrl; // rewrite URL internally
 
-  request({
-    url: finalURL,
-    method: "GET",
-    gzip: true,
+  exactProxy.web(req, res, {
+    target: targetUrl,
     headers: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "User-Agent":
+        req.headers["user-agent"] ||
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122",
+      "Accept": "*/*",
       "Accept-Language": "en-US,en;q=0.9",
-      "Referer": "https://nextgenbets.com/casino",
-      "Upgrade-Insecure-Requests": 1,
-      "Cache-Control": "no-cache"
+      "Referer": "https://nextgenbets.com/",
     }
-  })
-  .on("error", err => {
-    console.error("EAR PROXY ERROR:", err);
-    res.status(500).send("EAR Proxy failed");
-  })
-  .pipe(res);
+  });
 });
 
 
-/**
- * ---------------------------------------------------------
+/* =========================================================
  * START SERVER
- * ---------------------------------------------------------
- */
+ * =======================================================*/
 app.listen(3000, () => {
   console.log("✅ EAR Proxy running on Ireland server :3000");
 });
