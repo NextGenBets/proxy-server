@@ -1,14 +1,13 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
-const request = require('request');
+const request = require('request');   
 
 // Puppeteer + Stealth
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 
-const { createProxyServer } = require("http-proxy");
 const app = express();
 
 // Parse JSON
@@ -22,19 +21,24 @@ app.use(cors({
   credentials: true
 }));
 
-// Helper: Clean & encode URL
+
+// -----------------------------------------------------
+// Helper: Clean and encode URL properly
+// -----------------------------------------------------
 function cleanGameUrl(url) {
   return encodeURI(
     url
-      .replace(/%60/g, "")
-      .replace(/`/g, "")
+      .replace(/%60/g, "")   // remove encoded `
+      .replace(/`/g, "")     // remove raw `
   );
 }
 
 
-/* =========================================================
- * 1️⃣ GAME-LAUNCH API PROXY
- * =======================================================*/
+/**
+ * ---------------------------------------------------------
+ * 1️⃣  GAME-LAUNCH API PROXY
+ * ---------------------------------------------------------
+ */
 app.post('/game-launch', async (req, res) => {
   try {
     const earUrl = 'https://api.nextgenbets.com/api/v1/ear-casino/game-launch';
@@ -64,93 +68,72 @@ app.post('/game-launch', async (req, res) => {
   }
 });
 
-
-/* =========================================================
- * 2️⃣ BASIC RAW IFRAME PROXY (keep as-is)
- * =======================================================*/
-app.get('/iframe', (req, res) => {
+app.get('/iframe-exact', (req, res) => {
   const targetUrl = req.query.url;
 
-  if (!targetUrl) return res.status(400).send('Missing url param');
+  if (!targetUrl) {
+    return res.status(400).send("Missing url param");
+  }
 
-  console.log("[REQUEST] Iframe proxy:", targetUrl);
+  console.log("➡ EXACT EAR request:", targetUrl);
+
+  // Do NOT change the URL. Just pass it as-is.
+  const finalURL = targetUrl;
 
   request({
-    url: targetUrl,
-    method: 'GET',
+    url: finalURL,
+    method: "GET",
+    gzip: true,
+    followRedirect: false,   // EAR hates forced redirects
     headers: {
-      "User-Agent": req.headers['user-agent'] || "Mozilla/5.0",
+      "User-Agent": req.headers["user-agent"] || 
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
       "Accept": "*/*",
-      "Referer": "https://nextgenbets.com/casino"
+      "Accept-Language": "en-US,en;q=0.9",
+      "Referer": req.headers.referer || "https://nextgenbets.com/",
+      "Cache-Control": "no-cache"
     }
   })
-  .on('error', err => {
-    console.error("Iframe Proxy Error:", err.message);
-    res.status(400).send("Iframe Proxy failed");
+  .on("error", err => {
+    console.error("EAR PROXY ERROR:", err);
+    res.status(500).send("EAR Proxy failed");
+  })
+  .pipe(res);
+});
+
+app.post("/iframe-exact", (req, res) => {
+  const { targetUrl } = req.body;
+  if (!targetUrl) return res.status(400).send("Missing targetUrl");
+
+  console.log("➡ EXACT URL request:", targetUrl);
+
+  // Make GET request exactly as browser
+  request({
+    url: targetUrl,
+    method: "GET",
+    gzip: true,
+    followRedirect: false,
+    headers: {
+      "User-Agent": req.headers["user-agent"] || "Mozilla/5.0",
+      "Accept": "*/*",
+      "Accept-Language": req.headers["accept-language"] || "en-US,en;q=0.9",
+      "Referer": req.headers["referer"] || "https://nextgenbets.com",
+      "Cache-Control": "no-cache"
+    }
+  })
+  .on("error", (err) => {
+    console.error("EAR Proxy Error:", err);
+    res.status(500).send("Proxy failed");
   })
   .pipe(res);
 });
 
 
-/* =========================================================
- * 3️⃣ FIXED IFRAME-EXACT (NEW http-proxy VERSION)
- * =======================================================*/
-
-// Create proxy instance
-const exactProxy = createProxyServer({
-  changeOrigin: true,
-  secure: false,
-  followRedirects: true,
-  selfHandleResponse: false
-});
-
-// Error handling
-exactProxy.on("error", (err, req, res) => {
-  console.error("Iframe-exact Proxy Error:", err.message);
-  if (!res.headersSent) {
-    res.status(500).send("Iframe-exact proxy failed");
-  }
-});
-
 /**
- * FINAL FIXED ENDPOINT
- * Works with ALL casino providers:
- * Pragmatic, PG Soft, Evolution, Ezugi, Hacksaw, Relax etc.
- */
-app.get('/iframe-exact', (req, res) => {
-  let raw = req.query.url;
-  if (!raw) return res.status(400).send("Missing url param");
-
-  let targetUrl;
-
-  try {
-    targetUrl = decodeURIComponent(raw);
-  } catch {
-    targetUrl = raw;
-  }
-
-  targetUrl = cleanGameUrl(targetUrl);
-  console.log("➡ EXACT Proxy Target:", targetUrl);
-
-  req.url = targetUrl; // rewrite URL internally
-
-  exactProxy.web(req, res, {
-    target: targetUrl,
-    headers: {
-      "User-Agent":
-        req.headers["user-agent"] ||
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122",
-      "Accept": "*/*",
-      "Accept-Language": "en-US,en;q=0.9",
-      "Referer": "https://nextgenbets.com/",
-    }
-  });
-});
-
-
-/* =========================================================
+ * ---------------------------------------------------------
  * START SERVER
- * =======================================================*/
+ * ---------------------------------------------------------
+ */
 app.listen(3000, () => {
   console.log("✅ EAR Proxy running on Ireland server :3000");
 });
