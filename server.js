@@ -68,38 +68,38 @@ app.post('/game-launch', async (req, res) => {
   }
 });
 
-app.get('/iframe-exact', (req, res) => {
-  const targetUrl = req.query.url;
+// app.get('/iframe-exact', (req, res) => {
+//   const targetUrl = req.query.url;
 
-  if (!targetUrl) {
-    return res.status(400).send("Missing url param");
-  }
+//   if (!targetUrl) {
+//     return res.status(400).send("Missing url param");
+//   }
 
-  console.log("➡ EXACT EAR request:", targetUrl);
+//   console.log("➡ EXACT EAR request:", targetUrl);
 
-  // Do NOT change the URL. Just pass it as-is.
-  const finalURL = targetUrl;
+//   // Do NOT change the URL. Just pass it as-is.
+//   const finalURL = targetUrl;
 
-  request({
-    url: finalURL,
-    method: "GET",
-    gzip: true,
-    followRedirect: false,   // EAR hates forced redirects
-    headers: {
-      "User-Agent": req.headers["user-agent"] || 
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-      "Accept": "*/*",
-      "Accept-Language": "en-US,en;q=0.9",
-      "Referer": req.headers.referer || "https://nextgenbets.com/",
-      "Cache-Control": "no-cache"
-    }
-  })
-  .on("error", err => {
-    console.error("EAR PROXY ERROR:", err);
-    res.status(500).send("EAR Proxy failed");
-  })
-  .pipe(res);
-});
+//   request({
+//     url: finalURL,
+//     method: "GET",
+//     gzip: true,
+//     followRedirect: false,   // EAR hates forced redirects
+//     headers: {
+//       "User-Agent": req.headers["user-agent"] || 
+//         "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+//       "Accept": "*/*",
+//       "Accept-Language": "en-US,en;q=0.9",
+//       "Referer": req.headers.referer || "https://nextgenbets.com/",
+//       "Cache-Control": "no-cache"
+//     }
+//   })
+//   .on("error", err => {
+//     console.error("EAR PROXY ERROR:", err);
+//     res.status(500).send("EAR Proxy failed");
+//   })
+//   .pipe(res);
+// });
 
 app.post("/iframe-exact", (req, res) => {
   const { targetUrl } = req.body;
