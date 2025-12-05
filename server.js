@@ -143,34 +143,6 @@ app.post("/save-url", (req, res) => {
 });
 
 
-// app.get('/iframe-exact/:token', (req, res) => {
-//   const token = req.params.token;
-//   const targetUrl = urlStore[token];
-
-//   if (!targetUrl) return res.status(400).send("Invalid or expired token");
-
-//   console.log("➡ EXACT EAR request:", targetUrl);
-
-//   request({
-//     url: targetUrl,
-//     method: "GET",
-//     gzip: true,
-//     followRedirect: false,
-//     headers: {
-//       "User-Agent": req.headers["user-agent"] || "Mozilla/5.0",
-//       "Accept": "*/*",
-//       "Accept-Language": "en-US,en;q=0.9",
-//       "Referer": "https://nextgenbets.com",
-//       "Cache-Control": "no-cache"
-//     }
-//   })
-//   .on("error", err => {
-//     console.error("EAR Proxy ERROR:", err);
-//     res.status(500).send("EAR Proxy failed");
-//   })
-//   .pipe(res);
-// });
-
 app.get('/iframe-exact/:token', (req, res) => {
   const token = req.params.token;
   const targetUrl = urlStore[token];
@@ -179,7 +151,6 @@ app.get('/iframe-exact/:token', (req, res) => {
 
   console.log("➡ EXACT EAR request:", targetUrl);
 
-  // Fetch HTML as string
   request({
     url: targetUrl,
     method: "GET",
@@ -192,18 +163,12 @@ app.get('/iframe-exact/:token', (req, res) => {
       "Referer": "https://nextgenbets.com",
       "Cache-Control": "no-cache"
     }
-  }, (err, response, body) => {
-    if (err) {
-      console.error("EAR Proxy ERROR:", err);
-      return res.status(500).send("EAR Proxy failed");
-    }
-
-    // Rewrite relative URLs to absolute URLs (pointing to the original server)
-    // This handles <script src="/..."> and <link href="/...">
-    body = body.replace(/(src|href)=["']\/([^"']+)["']/g, `$1="${new URL(targetUrl).origin}/$2"`);
-
-    res.send(body);
-  });
+  })
+  .on("error", err => {
+    console.error("EAR Proxy ERROR:", err);
+    res.status(500).send("EAR Proxy failed");
+  })
+  .pipe(res);
 });
 
 /**
