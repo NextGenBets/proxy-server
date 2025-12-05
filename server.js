@@ -151,18 +151,25 @@ app.get('/iframe-exact/:token', (req, res) => {
 
   console.log("➡ EXACT EAR request:", targetUrl);
 
+  // Detect static assets (JS, CSS, images)
+  const isStaticFile = /\.(js|css|wasm|png|jpg|jpeg|gif|svg|mp3|json)(\?.*)?$/i.test(targetUrl);
+
   request({
     url: targetUrl,
     method: "GET",
     gzip: true,
-    followRedirect: false,
+    followRedirect: isStaticFile, // follow redirects for static files
     headers: {
       "User-Agent": req.headers["user-agent"] || "Mozilla/5.0",
       "Accept": "*/*",
-      "Accept-Language": "en-US,en;q=0.9",
-      "Referer": "https://nextgenbets.com",
+      "Accept-Language": req.headers["accept-language"] || "en-US,en;q=0.9",
+      "Referer": req.headers["referer"] || "https://nextgenbets.com",
       "Cache-Control": "no-cache"
     }
+  })
+  .on("response", (proxyRes) => {
+    // Keep correct MIME type
+    res.setHeader("Content-Type", proxyRes.headers["content-type"] || "application/octet-stream");
   })
   .on("error", err => {
     console.error("EAR Proxy ERROR:", err);
@@ -170,7 +177,6 @@ app.get('/iframe-exact/:token', (req, res) => {
   })
   .pipe(res);
 });
-
 /**
  * ---------------------------------------------------------
  * START SERVER
