@@ -12,8 +12,6 @@ puppeteer.use(StealthPlugin());
 
 const app = express();
 
-// Parse JSON
-app.use(express.json());
 
 // CORS
 app.use(cors({
@@ -26,6 +24,8 @@ app.use(cors({
   credentials: true
 }));
 
+// Parse JSON
+app.use(express.json());
 
 // -----------------------------------------------------
 // Helper: Clean and encode URL properly
@@ -142,14 +142,18 @@ app.post("/save-url", (req, res) => {
 
   console.log("Stored URL:", token, targetUrl);
 
-  res.json({ token });
+   res.status(200).json({ token }); // guarantees CORS headers stay
 });
 
 
 app.get('/iframe-exact/:token', (req, res) => {
   const token = req.params.token;
   const targetUrl = urlStore[token];
-
+  // Fix CORS for piped response
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "https://nextgenbets.com");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Vary", "Origin");
+  
   if (!targetUrl) return res.status(400).send("Invalid or expired token");
 
   console.log("➡ EXACT EAR request:", targetUrl);
