@@ -134,15 +134,21 @@ app.post("/iframe-exact", (req, res) => {
 });
 
 app.post("/save-url", (req, res) => {
+  // Force CORS headers manually
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "https://nextgenbets.com");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Vary", "Origin");
+
   const { targetUrl } = req.body;
-  if (!targetUrl) return res.status(400).send("Missing targetUrl");
+  if (!targetUrl) return res.status(400).json({ error: "Missing targetUrl" });
 
   const token = uuidv4();
   urlStore[token] = targetUrl;
 
   console.log("Stored URL:", token, targetUrl);
 
-   res.status(200).json({ token }); // guarantees CORS headers stay
+  // KEY FIX: Always return 200 + JSON
+  return res.status(200).json({ token });
 });
 
 
