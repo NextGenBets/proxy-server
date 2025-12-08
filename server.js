@@ -23,7 +23,8 @@ app.use(cors({
   allowedHeaders: ['Authorization', 'Content-Type'],
   credentials: true
 }));
-app.options('*', cors());
+// CORS preflight for all routes
+app.options('/*', cors());
 
 // Parse JSON
 app.use(express.json());
