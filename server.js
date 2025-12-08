@@ -17,7 +17,10 @@ app.use(express.json());
 
 // CORS
 app.use(cors({
-  origin: 'https://nextgenbets.com',
+  origin: [
+    'https://nextgenbets.com',
+    'https://proxy.nextgenbets.com'
+  ],
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Authorization', 'Content-Type'],
   credentials: true
