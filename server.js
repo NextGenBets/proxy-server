@@ -24,7 +24,7 @@ app.use(cors({
   credentials: true
 }));
 // CORS preflight for all routes
-app.options('/*', cors());
+// app.options('/*', cors());
 
 // Parse JSON
 app.use(express.json());
