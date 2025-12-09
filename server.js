@@ -47,90 +47,36 @@ app.post("/save-url", (req, res) => {
 });
 
 
-// app.get('/iframe-exact/:token', (req, res) => {
-//   const token = req.params.token;
-//   const targetUrl = urlStore[token];
-//   // Fix CORS for piped response
-//   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "https://nextgenbets.com");
-//   res.setHeader("Access-Control-Allow-Credentials", "true");
-//   res.setHeader("Vary", "Origin");
-  
-//   if (!targetUrl) return res.status(400).send("Invalid or expired token");
-
-//   console.log("➡ EXACT EAR request:", targetUrl);
-
-//   request({
-//     url: targetUrl,
-//     method: "GET",
-//     gzip: true,
-//     followRedirect: false,
-//     headers: {
-//       "User-Agent": req.headers["user-agent"] || "Mozilla/5.0",
-//       "Accept": "*/*",
-//       "Accept-Language": "en-US,en;q=0.9",
-//       "Referer": "https://nextgenbets.com",
-//       "Cache-Control": "no-cache"
-//     }
-//   })
-//   .on("error", err => {
-//     console.error("EAR Proxy ERROR:", err);
-//     res.status(500).send("EAR Proxy failed");
-//   })
-//   .pipe(res);
-// });
-
-
-app.get('/iframe-exact/:token', async (req, res) => {
+app.get('/iframe-exact/:token', (req, res) => {
   const token = req.params.token;
   const targetUrl = urlStore[token];
-
-  if (!targetUrl) return res.status(400).send("Invalid or expired token");
-
-  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+  // Fix CORS for piped response
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "https://nextgenbets.com");
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Vary", "Origin");
+  
+  if (!targetUrl) return res.status(400).send("Invalid or expired token");
 
-  try {
-    let currentUrl = targetUrl;
-    let maxRedirects = 10;
+  console.log("➡ EXACT EAR request:", targetUrl);
 
-    while (maxRedirects-- > 0) {
-      const response = await axios.get(currentUrl, {
-        responseType: "stream",
-        validateStatus: () => true, // allow all status codes
-        headers: {
-          "User-Agent": req.headers["user-agent"] || "Mozilla/5.0",
-          "Accept": "*/*",
-          "Accept-Language": "en-US,en;q=0.9",
-          "Referer": currentUrl // MUST be original provider domain
-        }
-      });
-
-      // ---> Redirect Handling
-      if (response.status >= 300 && response.status < 400 && response.headers.location) {
-        const redirectUrl = new URL(response.headers.location, currentUrl).toString();
-        currentUrl = redirectUrl;
-        continue; // follow redirect manually
-      }
-
-      // ---> Final Response
-      res.status(response.status);
-      Object.keys(response.headers).forEach(h => {
-        if (!["content-length", "transfer-encoding"].includes(h)) {
-          res.setHeader(h, response.headers[h]);
-        }
-      });
-
-      response.data.pipe(res);
-      return;
+  request({
+    url: targetUrl,
+    method: "GET",
+    gzip: true,
+    followRedirect: false,
+    headers: {
+      "User-Agent": req.headers["user-agent"] || "Mozilla/5.0",
+      "Accept": "*/*",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Referer": "https://nextgenbets.com",
+      "Cache-Control": "no-cache"
     }
-
-    return res.status(500).send("Too many redirects");
-
-  } catch (err) {
-    console.log("Proxy Error:", err);
-    return res.status(500).send("Proxy failed");
-  }
+  })
+  .on("error", err => {
+    console.error("EAR Proxy ERROR:", err);
+    res.status(500).send("EAR Proxy failed");
+  })
+  .pipe(res);
 });
 
 /**
